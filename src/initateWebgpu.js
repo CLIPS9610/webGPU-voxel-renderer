@@ -1033,7 +1033,23 @@ fn fs(in: VSOut) -> @location(0) vec4f {
    //let b = coord[0];
 
 
-    var light = textureLoad(lightingTex,vec3<u32>(vec2<u32>((in.uv+1.0)*0.5 * 32),u32(in.objectID)),0);
+    var light = vec4(0.0);
+    var i = 0.0;
+    for(var x = 0; x<5; x++){
+      for(var y = 0; y<5; y++){
+
+
+      
+        let offset = vec2f(f32(x-2),f32(y-2));
+        let coord2 = vec2<u32>(vec2<u32>(coord) + vec2<u32>(offset));
+        let texel = textureLoad(lightingTex,vec3<u32>(vec2<u32>(coord2),u32(in.objectID)),0);
+        if(coord2.x>=0 && coord2.y>=0 && coord2.x<32 && coord2.y<32){
+        i+=1.0;
+        light += texel;
+}
+      }
+}
+    light /=i;
     
     
     //light = vec4(1.0);
