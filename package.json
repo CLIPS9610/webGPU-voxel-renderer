@@ -1,0 +1,33 @@
+{
+  "name": "webgpu-voxel-renderer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "dist": "npm run build && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
+    "vite": "^8.2.1"
+  },
+  "dependencies": {
+    "wgpu-matrix": "^3.4.2"
+  },
+  "build": {
+    "appId": "com.clips9610.webgpuvoxelrenderer",
+    "productName": "WebGPU Voxel Renderer",
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
