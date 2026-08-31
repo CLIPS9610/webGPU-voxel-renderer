@@ -76,7 +76,7 @@ async function main() {
   webgpuInfo.device.queue.writeBuffer(voxelInfo.storageBuffer, 0, voxelInfo.storageValues);
   webgpuInfo.device.queue.writeBuffer(resources.storageData.storageBuffer, 0, voxelInfo.storageValues);
   webgpuInfo.device.queue.writeBuffer(resources.indirectBuffer.storageBuffer, 0, new Uint32Array([(voxelInfo.voxelCount + 1) * 6, 1, 0, 0]));
-
+  webgpuInfo.device.queue.writeBuffer(resources.lightingBuffer.storageBuffer, 0, resources.lightingBuffer.storageValues);
   let t = 0
   let keyP = true
   document.addEventListener("keydown", e => {
@@ -122,9 +122,13 @@ async function main() {
   {width:32, height:32, depthOrArrayLayers: 32}
 );
     }
-
+    //alert(resources.lightingBuffer.storageValues)
     
     totalVoxels = voxelInfo.voxelCount
+    for(let i = 0; i < resources.lightingBuffer.storageValues.length; i++){
+      resources.lightingBuffer.storageValues[i] = 0;
+    }
+    //webgpuInfo.device.queue.writeBuffer(resources.lightingBuffer.storageBuffer, 0, resources.lightingBuffer.storageValues);
     lightMapRender(webgpuInfo,pipelineFormat,resources,totalVoxels)
 //shadowMapRender(webgpuInfo,pipelineFormat,resources,totalVoxels)
     

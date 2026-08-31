@@ -94,6 +94,9 @@ export async function createPipeline(webgpuInfo,module) {
 export async function initWebgpu() {
   if (!navigator.gpu)
     console.error("navigator.gpu not found")
+if (!navigator.gpu.wgslLanguageFeatures.has("packed_4x8_integer_dot_product")) {
+    throw new Error("Packed 4x8 integer functions are not supported by this GPU.");
+}
   const adapter = await navigator.gpu.requestAdapter()
   if (!adapter)
     console.error("adapter not found")
@@ -116,7 +119,7 @@ export async function initWebgpu() {
 export async function createModule(device) {
   const module = device.createShaderModule({
     label: 'our hardcoded red triangle shaders',
-    code: /* wgsl */ `
+    code: /* wgsl */ `requires packed_4x8_integer_dot_product;
     struct Plane {
     normal: vec3<f32>,
     d: f32,
@@ -216,6 +219,9 @@ const UVS = array(
 @group(0) @binding(13) var cellTex : texture_3d<f32>;
 @group(0) @binding(14) var lightingTexWrite : texture_storage_3d<rgba8unorm, write>;
 @group(0) @binding(15) var blueNoiseTexture : texture_2d<f32>;
+@group(0) @binding(16) var <storage, read_write> lightingBufferStore: array<u32>;
+@group(0) @binding(17) var <storage, read> lightingBufferRead: array<u32>;
+
 // =================== Compute shader ===================
 
 @compute @workgroup_size(64)
@@ -1030,26 +1036,47 @@ fn fs(in: VSOut) -> @location(0) vec4f {
 
 
     let coord = (in.uv+1.0)*0.5 * vec2f(textureDimensions(lightingTex, 0).xy);
-   //let b = coord[0];
+    let c1 = vec2(floor(coord.x), floor(coord.y));
+    let c2 = vec2(floor(coord.x) + 1.0, floor(coord.y));
+    let c3 = vec2(floor(coord.x) + 1.0, floor(coord.y) + 1.0);
+    let c4 = vec2(floor(coord.x), floor(coord.y) + 1.0);
 
+    let rad1 = textureLoad(lightingTex,vec3<u32>(vec2<u32>(c1),u32(in.objectID)),0);
+    let rad2 = textureLoad(lightingTex,vec3<u32>(vec2<u32>(c2),u32(in.objectID)),0);
+    
+    var x1 = in.uv.x;
+    
+    let intX1 = mix(rad1,rad2,in.uv.x);
+
+    let rad3 = textureLoad(lightingTex,vec3<u32>(vec2<u32>(c4),u32(in.objectID)),0);
+    let rad4 = textureLoad(lightingTex,vec3<u32>(vec2<u32>(c3),u32(in.objectID)),0);
+    let intX2 = mix(rad3,rad4,in.uv.x);
+
+    let intXY = mix(intX1,intX2,in.uv.y);
+
+    //return vec4(te.xyz,1.0);
+    
+
+    //let b = coord[0];
+    //return vec4f(textureLoad(lightingTex,vec3<u32>(vec2<u32>(coord),u32(in.objectID)),0));
 
     var light = vec4(0.0);
     var i = 0.0;
-    for(var x = 0; x<5; x++){
-      for(var y = 0; y<5; y++){
+    for(var x = 0u; x<8u; x++){
+      for(var y = 0u; y<8u; y++){
 
 
       
         let offset = vec2f(f32(x-2),f32(y-2));
-        let coord2 = vec2<u32>(vec2<u32>(coord) + vec2<u32>(offset));
+        let coord2 = vec2<u32>(vec2<u32>(x,y));
         let texel = textureLoad(lightingTex,vec3<u32>(vec2<u32>(coord2),u32(in.objectID)),0);
-        if(coord2.x>=0 && coord2.y>=0 && coord2.x<32 && coord2.y<32){
+        if(coord2.x>=0 && coord2.y>=0 && coord2.x<8 && coord2.y<8){
         i+=1.0;
         light += texel;
 }
       }
 }
-    light /=i;
+    light /=64;
     
     
     //light = vec4(1.0);
@@ -1061,7 +1088,14 @@ fn fs(in: VSOut) -> @location(0) vec4f {
     }
     
     var te = textureLoad(voxelTextures, vec2<u32>((in.uv+1.0)*0.5 * vec2f(textureDimensions(voxelTextures, 0))), 0);
-    return vec4(light.xyz * te.xyz,1.0);
+    var lightTestx = lightingBufferRead[u32(in.objectID *3)];
+    var lightTesty = lightingBufferRead[u32(in.objectID *3 + 1)];
+    var lightTestz = lightingBufferRead[u32(in.objectID *3 + 2)];
+    var lightTest = unpack4xU8(lightingBufferRead[u32(in.objectID)]);
+    return vec4(vec3f(lightTest.xyz)/255.0,1.0);
+    return vec4(f32(lightTestx)/256.0/64.0,f32(lightTesty)/256.0/64.0,f32(lightTestz)/256.0/64.0,1.0);
+    //return vec4(te.xyz,1.0);
+    return vec4(light.xyz,1.0);
     //return vec4(te.xyz,1.0);
     //let lightSpacePos = ourStruct.lightProjection * ourStruct.lightView * (floor(vec4(in.lightSpacePos)*32.0)/32.0);
     let lightSpacePos = ourStruct.lightProjection * ourStruct.lightView * (in.lightSpacePos*32.0)/32.0;
@@ -1230,7 +1264,11 @@ return vec4(te.xyz * mix(0.0,0.5,clamp(d,0.0,1.0)),1.0);
 
      }
 
-@compute @workgroup_size(256) fn generateLightMap(@builtin(global_invocation_id) id: vec3<u32>){
+     var<workgroup> sum_r : atomic<u32>;
+var<workgroup> sum_g : atomic<u32>;
+var<workgroup> sum_b : atomic<u32>;
+
+@compute @workgroup_size(64) fn generateLightMap(@builtin(global_invocation_id) id: vec3<u32>){
 
 let i = id.x;
     // Update positions in compute shader
@@ -1239,17 +1277,17 @@ let i = id.x;
   //return;
 }
 
-
+    //lightingBufferStore[i] = vec3(f32(i)/256.0,0.0,0.0);
     const origin = array(vec3f(0,0,1), vec3f(0,0,0), vec3f(0,0,0), vec3f(1,0,0),vec3f(0,1,0), vec3f(0,0,0));
     const right = array(vec3f(0,1,0),vec3f(0,1,0),vec3f(1,0,0),vec3f(0,0,1),vec3f(1,0,0),vec3f(0,0,1));
     const left = array(vec3f(1,0,0), vec3f(0,0,1), vec3f(0,1,0), vec3f(0,1,0), vec3f(0,0,1), vec3f(1,0,0));
+//return;
 
 
-
-let instanceData = otherStructsVertex[u32(i/1024)];
-var uv = vec2f(f32(u32(i % 1024) % 32), f32(u32(u32(i % 1024)/32)));
-let quantizedPos = (origin[u32(instanceData.pos.w)/6] + right[u32(instanceData.pos.w)/6] * uv.x/32.0 + left[u32(instanceData.pos.w)/6] * uv.y/32.0)* instanceData.scale.xyz + instanceData.pos.xyz;
-
+let instanceData = otherStructsVertex[u32(i/64)];
+var uv = vec2f(f32(u32(i % 64) % 8), f32(u32(u32(i % 64)/8)));
+var quantizedPos = (origin[u32(instanceData.pos.w)/6] + right[u32(instanceData.pos.w)/6] * uv.x /8.0+ left[u32(instanceData.pos.w)/6] * uv.y/8.0)* instanceData.scale.xyz + instanceData.pos.xyz;
+//quantizedPos = instanceData.pos.xyz + origin[u32(instanceData.pos.w)/6];
 
 let point = instanceData.pos.xyz;
 var normal = normals[u32(instanceData.pos.w)/6];
@@ -1258,9 +1296,15 @@ var normal = normals[u32(instanceData.pos.w)/6];
 var throughput = vec3(1.0);
 var p = u32(hash(quantizedPos)*40961039.0);
 
+
 var radiance = vec3(0.0);
+throughput = vec3(1.0);
+
+
 
 for(var k = 0; k < 5; k++){
+
+
 
 let direction = normalize(vec3(16.0) - quantizedPos);
 var ray = Ray(quantizedPos + normal * 0.01, direction );
@@ -1311,10 +1355,33 @@ ray.origin = hitBounce.xyz + ddaNormal(dda) * 0.01;
 }
 
   }
-   
-textureStore(lightingTexWrite,vec3<i32>(i32(uv.x),i32(uv.y),i32(i/1024)),vec4(vec3(radiance),1.0));
 
 
+
+if(i32(i)%64==0){
+
+    atomicStore(&sum_r, 0u);
+    atomicStore(&sum_g, 0u);
+    atomicStore(&sum_b, 0u);
+
+}
+workgroupBarrier();
+
+atomicAdd(&sum_r, u32(radiance.x * 256.0));
+atomicAdd(&sum_g, u32(radiance.y * 256.0));
+atomicAdd(&sum_b, u32(radiance.z * 256.0));
+
+workgroupBarrier();
+
+if(i32(i)%64==0){
+
+lightingBufferStore[i32(i/64)] = pack4xU8Clamp(vec4u(atomicLoad(&sum_r)/64, atomicLoad(&sum_g)/64, atomicLoad(&sum_b)/64, 0u));
+
+}
+
+textureStore(lightingTexWrite,vec3<i32>(i32(uv.x),i32(uv.y),i32(i/64)),vec4(vec3(radiance),1.0));
+
+  
 
 
 }

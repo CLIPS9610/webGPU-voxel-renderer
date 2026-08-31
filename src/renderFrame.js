@@ -17,7 +17,7 @@ const genLight = encoder.beginComputePass();
 
       genLight.setPipeline(resources.lightMapPipeline);
       genLight.setBindGroup(0, resources.lightMapBindgroup);
-      genLight.dispatchWorkgroups(64*64);
+      genLight.dispatchWorkgroups(Math.ceil(it));
       genLight.end();
 
 const commandBuffer = encoder.finish();

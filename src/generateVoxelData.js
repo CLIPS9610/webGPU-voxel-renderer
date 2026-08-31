@@ -166,10 +166,12 @@ export function generateVoxelData(device, SIZE) {
     const proxyBuffer = new Float32Array(proxyBufferSize / 4)
 
     function getVoxel(x, y, z) {
-        
+      //return true
+      //return y==0 && x+y<16
+      //return (x+1)%3+y%3+z%3==0
       //return x%8==0 && z%8==0 && y==0
-      return  y==0 && x<16 && z<16
-      return y==30 && x%2+y%2==0
+     // return  y==0 && x<32 && z<32
+      //return y==30 && x%2+y%2==0
 return y==0 || (x%4+z%4==0 && y<=1)
         //return x%2+y%2+z%2==0
         //return x%4+y%4+z%4==0

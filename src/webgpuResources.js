@@ -283,7 +283,7 @@ const {device, presentationFormat, context} = webgpuInfo;
     },
   };
 
-  const dataBuffer = new Uint8Array(32*32*1088*4)
+  const dataBuffer = new Uint8Array(8*8*2048*4)
   const cellBuffer = new Uint8Array(32*32*32);
   const lightDataBuffer = []
   const emitters = [{x:1, y:10, z:1, strength: 255/4}]
@@ -310,21 +310,21 @@ const {device, presentationFormat, context} = webgpuInfo;
 //floodFill3D(lightDataBuffer, emitters);
 //alert(lightDataBuffer)
 
-  for(let ik = 0; ik < 1088; ik++){
+  for(let ik = 0; ik < 2048; ik++){
 
     
 
-    for(let ix = 0; ix < 32; ix++){
+    for(let ix = 0; ix < 8; ix++){
 
-      for(let iy = 0; iy < 32; iy++){
-
-
+      for(let iy = 0; iy < 8; iy++){
 
 
-        dataBuffer[4*(ik * 32 * 32 + iy * 32 + ix)] = ix*4
-        dataBuffer[4*(ik * 32 * 32 + iy * 32 + ix) + 1] =  iy*4
-        dataBuffer[4*(ik * 32 * 32 + iy * 32 + ix) + 2] =  0
-        dataBuffer[4*(ik * 32 * 32 + iy * 32 + ix) + 3] = 255
+
+
+        dataBuffer[4*(ik * 8 * 8 + iy * 8 + ix)] = ix*32
+        dataBuffer[4*(ik * 8 * 8 + iy * 8 + ix) + 1] =  iy*32
+        dataBuffer[4*(ik * 8 * 8 + iy * 8 + ix) + 2] =  0
+        dataBuffer[4*(ik * 8 * 8 + iy * 8 + ix) + 3] = 255
       
 
     }
@@ -333,14 +333,15 @@ const {device, presentationFormat, context} = webgpuInfo;
 
   }
 
-  
+
+
 
   
 
   const textureSize = {
-  width: 32,
-  height: 32,
-  depthOrArrayLayers: 1088, // For a 3D texture, this is the Z-dimension
+  width: 8,
+  height: 8,
+  depthOrArrayLayers: 2048, // For a 3D texture, this is the Z-dimension
 };
 
 const volumeTexture = device.createTexture({
@@ -463,12 +464,17 @@ device.queue.writeTexture(
   
 
 
-  const storageData = createStorageBuffer(device, Math.floor(it * 1.5) * 8 * 4)
+    const storageData = createStorageBuffer(device, Math.floor(it * 1.5) * 8 * 4)
     const atomicStorageData = createStorageBuffer(device, 4)
     const indirectBuffer = createIndirectBuffer(device, 4 * 4)
-
-
-
+    const lightingBuffer = createStorageBuffer(device, 32 * 32 * 32 *  6 * 4)
+    
+for (let i = 0; i < 32*32*6 ; i++) {
+      lightingBuffer.storageValues[4 * i] = i * 32/256.0;
+      lightingBuffer.storageValues[4 * i + 1] = i * 32/256.0;
+      lightingBuffer.storageValues[4 * i + 2] = i * 32/256.0 + 32/256.0;
+      lightingBuffer.storageValues[4 * i + 3] = 1/256.0;
+    }
 
         const renderBindGroup = device.createBindGroup({
     layout: pipelineFormat.pipeline.getBindGroupLayout(0),
@@ -478,7 +484,9 @@ device.queue.writeTexture(
       { binding: 8, resource: voxelTexture.createView() },
       { binding: 10, resource: lightSourceDepthTextureView },
       { binding: 12, resource: volumeTexture.createView() },
-      { binding: 13, resource: cellTexture.createView() }
+      { binding: 13, resource: cellTexture.createView() },
+      { binding: 17, resource: lightingBuffer.storageBuffer }
+      
     ]
   });
 
@@ -496,7 +504,8 @@ device.queue.writeTexture(
       entries: [
         { binding: 1, resource: storageData.storageBuffer },
         { binding: 14, resource: volumeTexture.createView() },
-      { binding: 13, resource: cellTexture.createView() }
+      { binding: 13, resource: cellTexture.createView() },
+      { binding: 16, resource: lightingBuffer.storageBuffer }
         
       ]
     });
@@ -575,6 +584,7 @@ const cullingBindGroup = device.createBindGroup({
     cellBuffer,
     lightMapPipeline,
     lightMapBindgroup,
+    lightingBuffer,
 
   }
 
