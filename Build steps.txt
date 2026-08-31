@@ -1,0 +1,14 @@
+
+to commit to github homepage:
+
+git fetch origin
+git pull --rebase origin main
+git push origin main
+
+to build:
+
+*commit changes
+
+npm install
+npm run build
+npm run dist
