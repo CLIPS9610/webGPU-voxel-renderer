@@ -441,7 +441,8 @@ struct VSOut {
     @location(3) camDis: vec3<f32>,
     @location(4) lightSpacePos: vec4<f32>,
     @location(5) worldPos: vec3<f32>,
-    @location(6) objectID: f32
+    @location(6) objectID: f32,
+    @location(7) normalID: f32
 };
 
 @vertex
@@ -465,6 +466,7 @@ fn vs(@builtin(vertex_index) vertexIndex: u32) -> VSOut {
         );
 
         out.normal = normals[u32(instanceData.pos.w)/6];
+        out.normalID = f32(u32(instanceData.pos.w)/6);
         out.color = vec3(instanceData.scale.w);
         out.uv = UVS[vertexIndex % 6];
 
@@ -1088,13 +1090,146 @@ fn fs(in: VSOut) -> @location(0) vec4f {
     }
     
     var te = textureLoad(voxelTextures, vec2<u32>((in.uv+1.0)*0.5 * vec2f(textureDimensions(voxelTextures, 0))), 0);
-    var lightTestx = lightingBufferRead[u32(in.objectID *3)];
-    var lightTesty = lightingBufferRead[u32(in.objectID *3 + 1)];
-    var lightTestz = lightingBufferRead[u32(in.objectID *3 + 2)];
-    var lightTest = unpack4xU8(lightingBufferRead[u32(in.objectID)]);
-    return vec4(vec3f(lightTest.xyz)/255.0,1.0);
-    return vec4(f32(lightTestx)/256.0/64.0,f32(lightTesty)/256.0/64.0,f32(lightTestz)/256.0/64.0,1.0);
-    //return vec4(te.xyz,1.0);
+    let idFromLocation = (in.color.x + in.color.y * 32.0 + in.color.z * 1024.0);
+    //return vec4(vec4f(unpack4xU8(lightingBufferRead[u32(idFromLocation) * 6 + u32(in.normalID)])).xyz/255.0,1.0);
+
+        const right = array(vec3f(0,1,0),vec3f(0,1,0),vec3f(1,0,0),vec3f(0,0,1),vec3f(1,0,0),vec3f(0,0,1));
+    const up = array(vec3f(1,0,0), vec3f(0,0,1), vec3f(0,1,0), vec3f(0,1,0), vec3f(0,0,1), vec3f(1,0,0));
+
+
+// get rounded pos
+let roundedPos = round(in.worldPos);
+
+let fractPos = roundedPos - in.worldPos;
+let neighborDirections = sign(fractPos);
+
+
+
+//return vec4(neighborDirections,1.0);
+
+
+let A = in.color;
+let B = in.color + right[u32(in.normalID)] * neighborDirections;
+let C = in.color + right[u32(in.normalID)] * neighborDirections + up[u32(in.normalID)] * neighborDirections;
+let D = in.color + up[u32(in.normalID)] * neighborDirections;
+let u = 0.5 - dot(fractPos,right[u32(in.normalID)] * neighborDirections);
+let v = 0.5 - dot(fractPos,up[u32(in.normalID)] * neighborDirections);
+
+//return vec4(up[u32(in.normalID)],1.0);
+
+let Acolor = vec4f(unpack4xU8(lightingBufferRead[u32(A.x + A.y * 32.0 + A.z * 1024.0) * 6 + u32(in.normalID)]));
+let Bcolor = vec4f(unpack4xU8(lightingBufferRead[u32(B.x + B.y * 32.0 + B.z * 1024.0) * 6 + u32(in.normalID)]));
+let Ccolor = vec4f(unpack4xU8(lightingBufferRead[u32(C.x + C.y * 32.0 + C.z * 1024.0) * 6 + u32(in.normalID)]));
+let Dcolor = vec4f(unpack4xU8(lightingBufferRead[u32(D.x + D.y * 32.0 + D.z * 1024.0) * 6 + u32(in.normalID)]));
+
+let wA = (1.0 - u) * (1.0 - v);
+let wB = u * (1.0 - v);
+let wC = u * v;
+let wD = (1.0 - u) * v;
+
+
+var lightInt = Acolor * wA + Bcolor * wB + Ccolor * wC + Dcolor * wD;
+var totalWeight = wA * f32(Acolor.w > 0.0) + wB * f32(Bcolor.w > 0.0) + wC * f32(Ccolor.w > 0.0) + wD * f32(Dcolor.w > 0.0);
+
+//var ssoLight = f32(Acolor.w > 0.0) + f32(Bcolor.w > 0.0) + f32(Ccolor.w > 0.0) + f32(Dcolor.w > 0.0);
+
+let upperNeighborA = A + in.normal;
+let upperNeighborAExists = 
+f32(unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 1]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 2]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 3]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 4]).w +
+unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 5]).w>0);
+
+
+let upperNeighborB = B + in.normal;
+let upperNeighborBExists = 
+f32(unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 1]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 2]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 3]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 4]).w +
+unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 5]).w>0);
+
+
+let upperNeighborC = C + in.normal;
+let upperNeighborCExists = 
+f32(unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 1]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 2]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 3]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 4]).w +
+unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 5]).w>0);
+
+let upperNeighborD = D + in.normal;
+let upperNeighborDExists = 
+f32(unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 1]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 2]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 3]).w + 
+unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 4]).w +
+unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 5]).w > 0);
+//return vec4(u*v);
+var ssoLight = 0.0;
+
+if(upperNeighborBExists<1.0 && upperNeighborDExists<1.0 && upperNeighborCExists<1.0){
+
+ssoLight = 1.0;
+}
+
+if(upperNeighborBExists<1.0 && upperNeighborDExists>=1.0 && upperNeighborCExists<1.0){
+
+ssoLight = mix(1.0,0.5,v);
+}
+
+if(upperNeighborBExists>=1.0 && upperNeighborDExists<1.0 && upperNeighborCExists<1.0){
+
+ssoLight = mix(1.0,0.5,u);
+}
+
+if(upperNeighborBExists>=1.0 && upperNeighborDExists>=1.0 && upperNeighborCExists<1.0){
+
+ssoLight = mix(1.0,0.5,sqrt(u*u + v*v));
+}
+
+if(upperNeighborBExists<1.0 && upperNeighborDExists<1.0 && upperNeighborCExists>=1.0){
+
+ssoLight = mix(1.0,0.75,u*v*4.0);
+}
+
+if(upperNeighborBExists<1.0 && upperNeighborDExists>=1.0 && upperNeighborCExists>=1.0){
+
+ssoLight = mix(1.0,0.5,v);
+}
+
+if(upperNeighborBExists>=1.0 && upperNeighborDExists<1.0 && upperNeighborCExists>=1.0){
+
+ssoLight = mix(1.0,0.5,u);
+}
+
+if(upperNeighborBExists>=1.0 && upperNeighborDExists>=1.0 && upperNeighborCExists>=1.0){
+
+ssoLight = mix(1.0,0.5,sqrt(u*u + v*v));
+}
+
+//return vec4(ssoLight);
+
+//return vec4((f32(upperNeighborAExists > 0) + f32(upperNeighborBExists > 0) + f32(upperNeighborCExists > 0) + f32(upperNeighborDExists > 0))/4.0);
+
+lightInt /= max(totalWeight,0.0001);
+
+    return vec4(lightInt.xyz/256.0 * ssoLight,1.0);
+
+    //return vec4(vec3f(Acolor.x + Bcolor.x + Ccolor.x + Dcolor.x, Acolor.y + Bcolor.y + Ccolor.y + Dcolor.y, Acolor.z + Bcolor.z + Ccolor.z + Dcolor.z)/4.0,1.0);
+    //return vec4(vec4f(Acolor + Bcolor + Ccolor + Dcolor).xyz/4.0/256.0,1.0);
+    
+    //var lightTest = unpack4xU8(lightingBufferRead[u32(in.objectID)]);
+    var lightTest = unpack4xU8(lightingBufferRead[u32(idFromLocation) * 6 + u32(in.normalID)]);
+    var is_light = lightTest.w > 0;
+    return vec4(vec3f(f32(is_light)),1.0);
+    //return vec4(vec3f(lightTest.xyz)/256.0,1.0);
+   
     return vec4(light.xyz,1.0);
     //return vec4(te.xyz,1.0);
     //let lightSpacePos = ourStruct.lightProjection * ourStruct.lightView * (floor(vec4(in.lightSpacePos)*32.0)/32.0);
@@ -1268,7 +1403,15 @@ return vec4(te.xyz * mix(0.0,0.5,clamp(d,0.0,1.0)),1.0);
 var<workgroup> sum_g : atomic<u32>;
 var<workgroup> sum_b : atomic<u32>;
 
-@compute @workgroup_size(64) fn generateLightMap(@builtin(global_invocation_id) id: vec3<u32>){
+@compute @workgroup_size(256) fn clearLightMap(@builtin(global_invocation_id) id: vec3<u32>) {
+
+lightingBufferStore[id.x] = 0u;
+
+return;
+
+}
+
+@compute @workgroup_size(64) fn generateLightMap(@builtin(global_invocation_id) id: vec3<u32>, @builtin(workgroup_id) group_id: vec3<u32>) {
 
 let i = id.x;
     // Update positions in compute shader
@@ -1282,11 +1425,16 @@ let i = id.x;
     const right = array(vec3f(0,1,0),vec3f(0,1,0),vec3f(1,0,0),vec3f(0,0,1),vec3f(1,0,0),vec3f(0,0,1));
     const left = array(vec3f(1,0,0), vec3f(0,0,1), vec3f(0,1,0), vec3f(0,1,0), vec3f(0,0,1), vec3f(1,0,0));
 //return;
-
+let side = group_id.x % 6u;
+let x = (group_id.x / 6u) % 32u;
+let y = ((group_id.x / 6u) / 32u) % 32u;
+let z = (group_id.x / 6u) / (32u * 32u);
 
 let instanceData = otherStructsVertex[u32(i/64)];
 var uv = vec2f(f32(u32(i % 64) % 8), f32(u32(u32(i % 64)/8)));
 var quantizedPos = (origin[u32(instanceData.pos.w)/6] + right[u32(instanceData.pos.w)/6] * uv.x /8.0+ left[u32(instanceData.pos.w)/6] * uv.y/8.0)* instanceData.scale.xyz + instanceData.pos.xyz;
+//quantizedPos = (origin[u32(side)] + right[u32(side)] * uv.x /8.0+ left[u32(side)] * uv.y/8.0) + vec3f(f32(x),f32(y),f32(z));
+
 //quantizedPos = instanceData.pos.xyz + origin[u32(instanceData.pos.w)/6];
 
 let point = instanceData.pos.xyz;
@@ -1365,6 +1513,9 @@ if(i32(i)%64==0){
     atomicStore(&sum_b, 0u);
 
 }
+
+
+
 workgroupBarrier();
 
 atomicAdd(&sum_r, u32(radiance.x * 256.0));
@@ -1375,7 +1526,11 @@ workgroupBarrier();
 
 if(i32(i)%64==0){
 
-lightingBufferStore[i32(i/64)] = pack4xU8Clamp(vec4u(atomicLoad(&sum_r)/64, atomicLoad(&sum_g)/64, atomicLoad(&sum_b)/64, 0u));
+lightingBufferStore[(u32(instanceData.pos.x) + u32(instanceData.pos.y) * 32u + u32(instanceData.pos.z) * 1024u)*6 + u32(instanceData.pos.w)/6] = pack4xU8Clamp(vec4u(atomicLoad(&sum_r)/64, atomicLoad(&sum_g)/64, atomicLoad(&sum_b)/64, 255u));
+//lightingBufferStore[(u32(instanceData.pos.x) + u32(instanceData.pos.y) * 32u + u32(instanceData.pos.z) * 1024u)*6 + u32(instanceData.pos.w)/6] = pack4xU8Clamp(vec4u(255,0,0,0u));
+
+
+//lightingBufferStore[i32(i/64)] = pack4xU8Clamp(vec4u(255,0,0, 0u));
 
 }
 

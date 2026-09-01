@@ -13,15 +13,22 @@ const {device, context} = webgpuInfo;
 
 const encoder = device.createCommandEncoder({ label: 'our encoder' });
 
+    const clearLight = encoder.beginComputePass();
+
+      clearLight.setPipeline(resources.clearLightMapPipeline);
+      clearLight.setBindGroup(0, resources.clearLightMapBindgroup);
+      clearLight.dispatchWorkgroups(32*32*32*6/256);
+      clearLight.end();
+
 const genLight = encoder.beginComputePass();
 
       genLight.setPipeline(resources.lightMapPipeline);
       genLight.setBindGroup(0, resources.lightMapBindgroup);
-      genLight.dispatchWorkgroups(Math.ceil(it));
+      genLight.dispatchWorkgroups(it);
       genLight.end();
 
-const commandBuffer = encoder.finish();
-    device.queue.submit([commandBuffer]);
+const commandBuffer2 = encoder.finish();
+    device.queue.submit([commandBuffer2]);
 
 
 

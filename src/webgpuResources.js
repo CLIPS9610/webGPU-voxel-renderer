@@ -179,6 +179,14 @@ const {device, presentationFormat, context} = webgpuInfo;
     },
     });
 
+    const clearLightMapPipeline = device.createComputePipeline({
+    layout: 'auto',
+    compute: {
+      module: renderModule.module,
+      entryPoint: 'clearLightMap',
+    },
+    });
+
     const cullingPipeline = device.createComputePipeline({
     layout: 'auto',
     compute: {
@@ -468,13 +476,27 @@ device.queue.writeTexture(
     const atomicStorageData = createStorageBuffer(device, 4)
     const indirectBuffer = createIndirectBuffer(device, 4 * 4)
     const lightingBuffer = createStorageBuffer(device, 32 * 32 * 32 *  6 * 4)
-    
-for (let i = 0; i < 32*32*6 ; i++) {
-      lightingBuffer.storageValues[4 * i] = i * 32/256.0;
-      lightingBuffer.storageValues[4 * i + 1] = i * 32/256.0;
-      lightingBuffer.storageValues[4 * i + 2] = i * 32/256.0 + 32/256.0;
-      lightingBuffer.storageValues[4 * i + 3] = 1/256.0;
+
+    for(let x = 0; x<32; x++){
+      for(let y = 0; y<32; y++){
+        for(let z = 0; z<32; z++){
+          for(let face = 0; face<6; face++){
+
+          if(x%2+z%2==1 && y==0){
+
+          lightingBuffer.storageValues[(x + y * 32 + z * 32 * 32) * 6 + face] = 2/255;
+          }else{
+
+            lightingBuffer.storageValues[(x + y * 32 + z * 32 * 32) * 6 + face] = 1/255;
+
+          }
+          }
+        }
+
+      }
+
     }
+
 
         const renderBindGroup = device.createBindGroup({
     layout: pipelineFormat.pipeline.getBindGroupLayout(0),
@@ -506,6 +528,14 @@ for (let i = 0; i < 32*32*6 ; i++) {
         { binding: 14, resource: volumeTexture.createView() },
       { binding: 13, resource: cellTexture.createView() },
       { binding: 16, resource: lightingBuffer.storageBuffer }
+        
+      ]
+    });
+
+    const clearLightMapBindgroup = device.createBindGroup({
+      layout: clearLightMapPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 16, resource: lightingBuffer.storageBuffer }
         
       ]
     });
@@ -585,6 +615,8 @@ const cullingBindGroup = device.createBindGroup({
     lightMapPipeline,
     lightMapBindgroup,
     lightingBuffer,
+    clearLightMapPipeline,
+    clearLightMapBindgroup,
 
   }
 
