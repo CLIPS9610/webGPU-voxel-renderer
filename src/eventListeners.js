@@ -14,6 +14,8 @@ export function resize(resources, webgpuInfo, pipelineFormat, camera, storageBuf
   context.canvas.width = width
   context.canvas.height = height
 
+  resources.mipCount = Math.min(11, Math.floor(Math.log2(Math.max(context.canvas.width, context.canvas.height))))
+
   context.configure({
     device,
     format: navigator.gpu.getPreferredCanvasFormat(),
@@ -35,6 +37,8 @@ export function resize(resources, webgpuInfo, pipelineFormat, camera, storageBuf
   };
 
 
+
+
   const depthTexture = device.createTexture(depthTextureDescriptor);
 
   const depthTextureView = depthTexture.createView();
@@ -44,7 +48,7 @@ export function resize(resources, webgpuInfo, pipelineFormat, camera, storageBuf
     view: context.getCurrentTexture().createView(),
     loadOp: 'clear',
     storeOp: 'store',
-    clearValue: { r: 0.3, g: 0.3, b: 0.3, a: 1 },
+    clearValue: [1.0, 160/255, 78/255, 1 ],
   }],
   depthStencilAttachment: {
     view: depthTextureView,
@@ -61,7 +65,7 @@ pipelineFormat.renderPassDescriptor = renderPassDescriptor
 
     resources.hizTexture = device.createTexture({
     size: [width, height],
-    mipLevelCount: mipCount,
+    mipLevelCount: resources.mipCount,
     format: "r32float",
     usage:
       GPUTextureUsage.TEXTURE_BINDING |
@@ -79,7 +83,7 @@ pipelineFormat.renderPassDescriptor = renderPassDescriptor
       {
         binding: 6, resource: resources.hizTexture.createView({
           baseMipLevel: 0,
-          mipLevelCount: mipCount
+          mipLevelCount: resources.mipCount
         }),
       }
 
@@ -106,19 +110,23 @@ pipelineFormat.renderPassDescriptor = renderPassDescriptor
 
     ],
   });
+  
 
    resources.debugQuadBindGroup = device.createBindGroup({
     layout: resources.debugQuadPipeline.getBindGroupLayout(0),
     entries: [
       {
-        binding: 6, resource: resources.hizTexture.createView({
-          baseMipLevel: 0,
-          mipLevelCount: mipCount
-        }),
+        binding: 10, resource: resources.lightSourceDepthTextureView
+
+      },
+      {
+        binding: 0, resource: resources.uniformBuffer
 
       }]
     
     })
+
+
 
 camera.projection = mat4.perspective(Math.PI / 4, width / height, 0.1, 1000)
 

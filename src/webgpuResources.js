@@ -243,6 +243,11 @@ const {device, presentationFormat, context} = webgpuInfo;
       module: renderModule.module,
       entryPoint: "vs_light",
     },
+    fragment: {
+      module: renderModule.module,
+      entryPoint: "fs_light",
+      targets:[{format:"rgba32float"}]
+    },
 
     depthStencil: {
       format: 'depth32float', // Must match the texture format
@@ -274,12 +279,17 @@ const {device, presentationFormat, context} = webgpuInfo;
     });
 
     const lightSourceDepthTextureView = lightSourceDepthTexture.createView();
-    //const lightSourceRenderTextureView = lightSourceRenderTexture.createView();
+    const lightSourceRenderTextureView = lightSourceRenderTexture.createView();
 
     const lightSourceRenderPassDescriptor = {
     label: 'our basic canvas renderPass',
         colorAttachments: [
-          
+          {
+      view: lightSourceRenderTextureView, // <-- Direct the output here
+      clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
+      loadOp: 'clear',
+      storeOp: 'store'
+    }
         ],
 
     depthStencilAttachment: {
@@ -392,8 +402,8 @@ device.queue.writeTexture(
     const { uniformBuffer, uniformValues } = createUniformBuffer(device, uniformBufferSize)
 
 
-    const mipCount = 11
-
+    let mipCount = Math.min(11, Math.floor(Math.log2(Math.max(context.canvas.width, context.canvas.height))))
+    //alert(mipCount)
 
     const hizTexture = device.createTexture({
     size: [context.canvas.width, context.canvas.height],
@@ -415,6 +425,11 @@ device.queue.writeTexture(
       },
       {
         binding: 0, resource: uniformBuffer
+
+      },
+
+      {
+        binding: 11, resource: lightSourceRenderTexture.createView()
 
       }
 
@@ -505,8 +520,8 @@ device.queue.writeTexture(
       { binding: 1, resource: storageBuffer },
       { binding: 8, resource: voxelTexture.createView() },
       { binding: 10, resource: lightSourceDepthTextureView },
+      { binding: 11, resource: lightSourceRenderTextureView },
       { binding: 12, resource: volumeTexture.createView() },
-      { binding: 13, resource: cellTexture.createView() },
       { binding: 17, resource: lightingBuffer.storageBuffer }
       
     ]
@@ -617,6 +632,7 @@ const cullingBindGroup = device.createBindGroup({
     lightingBuffer,
     clearLightMapPipeline,
     clearLightMapBindgroup,
+    mipCount
 
   }
 

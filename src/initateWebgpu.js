@@ -362,13 +362,13 @@ min_depth = (far - (near * far)/linear_min_depth)/(far-near);
       for (var ix = lowerBound.x; ix < upperBound.x; ix+=1.0){
         for (var iy = lowerBound.y; iy < upperBound.y; iy+=1.0){
           
-        let coord = vec2<u32>(u32(ix),u32(iy));
+        let coord = vec2<i32>(i32(ix),i32(iy));
 
         
 
         var depth = textureLoad(dstTexRead, coord, u32(lod));
 
-        if(coord.x>=dims.x || coord.y>=dims.y || coord.x<0 || coord.y<0){
+        if(coord.x>=i32(dims.x) || coord.y>=i32(dims.y) || coord.x<0 || coord.y<0){
 
           depth.x = 1.0;
 
@@ -857,7 +857,11 @@ fn fs_main_fullscreen(@builtin(position) fragCoord : vec4<f32>)
     let coord = vec2<i32>(fragCoord.xy);
 
     var depth = (textureLoad(shadowTex, coord, 0));
-     depth = pow(depth,20.0);
+    var color = (textureLoad(renderTex, coord, 0));
+     //depth = pow(depth,0.0);
+
+     return vec4(color.x/32.0,color.y/32.0,color.z/32.0,1.0);
+     return vec4(depth,depth,depth,1.0);
 
     let ray = computeRay(fragCoord.xy/1024.0, ourStruct.view,ourStruct.projection);
     var dda = ddaInit(ray);
@@ -917,7 +921,7 @@ fn vs_light(@builtin(vertex_index) vertexIndex: u32) -> VSOut {
 ) + vec4(-0.0,-0.0,0.0,0.0));
 
         out.normal = normals[u32(instanceData.pos.w)/6];
-        out.color = vec3(0.0,0.0,instanceData.scale.w);
+        out.color = vec3(instanceData.pos.xyz);
         out.uv = UVS[vertexIndex % 6];
 
         let view = ourStruct.lightView;
@@ -948,7 +952,7 @@ fn fs_light(in: VSOut) -> @location(0) vec4f {
 
 let lengthAlong = dot(forward, in.worldPos - pos);
 
-    return vec4f(in.worldPos,lengthAlong);
+    return vec4f(in.color,1.0);
 }
 
 fn rand(state: ptr<function, u32>) -> f32 {
@@ -1034,6 +1038,45 @@ fn bounceDiffuse(
 
 @fragment
 fn fs(in: VSOut) -> @location(0) vec4f {
+
+    var shadowMapUV = ourStruct.lightProjection * ourStruct.lightView * vec4(in.worldPos,1.0);
+    shadowMapUV = shadowMapUV*0.5+ vec4(0.5);
+
+    shadowMapUV.y = 1.0- shadowMapUV.y;
+    let sampledDepth3 = textureLoad(shadowTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(shadowTex, 0))),0);
+    //let colorSample = textureLoad(renderTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(renderTex, 0))),0);
+
+        var illum = 0.0;
+        let forward3 = -vec3<f32>(ourStruct.lightView[0].z, ourStruct.lightView[1].z, ourStruct.lightView[2].z);
+
+
+    for(var ixs = 0i; ixs<3i; ixs++){
+    
+    for(var iys = 0i; iys<3i; iys++){
+        let offset = vec2f(f32(ixs-1),f32(iys-1));
+        //let sampledDepth2 = textureLoad(shadowTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(shadowTex, 0))+ offset),0);
+        let colorSample2 = textureLoad(renderTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(renderTex, 0)) + offset),0);
+
+        if(length(in.color - colorSample2.xyz)<0.9 && dot(in.normal,forward3)<0.0){
+
+        illum = 1.0;
+}
+
+        }
+    }
+
+
+
+     
+    //if(length(in.color - colorSample.xyz)<0.5 && dot(in.normal,forward3)<0.0){
+
+    //illum = 1.0;
+    
+    //}
+
+    //return vec4(0.0);
+
+    //return vec4(in.uv.x + t1.x * 0.0, in.uv.y+t2.x * 10.0,0.0,1.0);
 
 
 
@@ -1131,17 +1174,6 @@ let wD = (1.0 - u) * v;
 var lightInt = Acolor * wA + Bcolor * wB + Ccolor * wC + Dcolor * wD;
 var totalWeight = wA * f32(Acolor.w > 0.0) + wB * f32(Bcolor.w > 0.0) + wC * f32(Ccolor.w > 0.0) + wD * f32(Dcolor.w > 0.0);
 
-//var ssoLight = f32(Acolor.w > 0.0) + f32(Bcolor.w > 0.0) + f32(Ccolor.w > 0.0) + f32(Dcolor.w > 0.0);
-
-let upperNeighborA = A + in.normal;
-let upperNeighborAExists = 
-f32(unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 1]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 2]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 3]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 4]).w +
-unpack4xU8(lightingBufferRead[u32(upperNeighborA.x + upperNeighborA.y * 32.0 + upperNeighborA.z * 1024.0) * 6 + 5]).w>0);
-
 
 let upperNeighborB = B + in.normal;
 let upperNeighborBExists = 
@@ -1170,7 +1202,7 @@ unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + u
 unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 3]).w + 
 unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 4]).w +
 unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 5]).w > 0);
-//return vec4(u*v);
+
 var ssoLight = 0.0;
 
 if(upperNeighborBExists<1.0 && upperNeighborDExists<1.0 && upperNeighborCExists<1.0){
@@ -1213,186 +1245,12 @@ if(upperNeighborBExists>=1.0 && upperNeighborDExists>=1.0 && upperNeighborCExist
 ssoLight = mix(1.0,0.5,sqrt(u*u + v*v));
 }
 
-//return vec4(ssoLight);
-
-//return vec4((f32(upperNeighborAExists > 0) + f32(upperNeighborBExists > 0) + f32(upperNeighborCExists > 0) + f32(upperNeighborDExists > 0))/4.0);
 
 lightInt /= max(totalWeight,0.0001);
 
-    return vec4(lightInt.xyz/256.0 * ssoLight,1.0);
 
-    //return vec4(vec3f(Acolor.x + Bcolor.x + Ccolor.x + Dcolor.x, Acolor.y + Bcolor.y + Ccolor.y + Dcolor.y, Acolor.z + Bcolor.z + Ccolor.z + Dcolor.z)/4.0,1.0);
-    //return vec4(vec4f(Acolor + Bcolor + Ccolor + Dcolor).xyz/4.0/256.0,1.0);
-    
-    //var lightTest = unpack4xU8(lightingBufferRead[u32(in.objectID)]);
-    var lightTest = unpack4xU8(lightingBufferRead[u32(idFromLocation) * 6 + u32(in.normalID)]);
-    var is_light = lightTest.w > 0;
-    return vec4(vec3f(f32(is_light)),1.0);
-    //return vec4(vec3f(lightTest.xyz)/256.0,1.0);
-   
-    return vec4(light.xyz,1.0);
-    //return vec4(te.xyz,1.0);
-    //let lightSpacePos = ourStruct.lightProjection * ourStruct.lightView * (floor(vec4(in.lightSpacePos)*32.0)/32.0);
-    let lightSpacePos = ourStruct.lightProjection * ourStruct.lightView * (in.lightSpacePos*32.0)/32.0;
+    return vec4(te.yxz * (lightInt.xyz)/256.0 * 1.5* ssoLight *mix(0.5,1.0,illum),1.0);
 
-
-    
-    //return vec4f(light.xyz,1.0);
-    let projCoords = lightSpacePos.xyz / lightSpacePos.w;
-    var uv = projCoords.xy * 0.5 + vec2(0.5);
-    //let quantizedPos =(floor(vec3(in.lightSpacePos.xyz)*32.0)/32.0);
-    let quantizedPos =(in.lightSpacePos.xyz*32.0)/32.0;
-const lowest = 0.0;
-uv.y = 1.0-uv.y;
-
-let direction = normalize(vec3(16.0) - quantizedPos);
-var ray = Ray(quantizedPos + in.normal * 0.01, direction );
-var throughput = vec3(1.0);
-var p = u32(hash(quantizedPos)*40961039.0);
-
-var radiance = vec3(0.0);
-    
-//bounceDiffuse(
-  //      &ray,
-    //    covered.xyz,
-      //  ddaNormal(dda),
-      //  Material(vec3(0.5,0.5,0.5),vec3(0.0),0.2,0.1),
-       // &brightness,
-       // &rngState
-    //);
-
-
-
-
-
-var dda = ddaInit(ray);
-var normal = in.normal;
-
-for (var bounce = 0; bounce < 5; bounce++) {
-    
-    var rayOriginal = Ray(ray.origin, normalize(vec3(16.0) - ray.origin));
-    var ddaOriginal = ddaInit(rayOriginal);
-    let hitDirect = march(rayOriginal,&ddaOriginal,30);
-if(hitDirect.w==0.0){
-
-//return vec4(vec3(0.5,0.5,0.5)*throughput,1.0);
-radiance += vec3(0.5,0.5,0.5)*throughput*dot(ray.direction,normal);
-}
-
-
-    if(bounce>0){
-        normal = ddaNormal(dda);
-    }
-    
-
-    bounceDiffuse(
-        &ray,
-        ray.origin,
-       normal,
-       Material(vec3(0.5,0.5,0.5),vec3(0.0),0.9,0.9),
-       &throughput,
-       &p
-    );
-
-dda = ddaInit(ray);
-
-let hitBounce = march(ray, &dda, 30);
-
-if(hitBounce.w==0.0){
-
-    //return vec4(0.0,0.0,0.0,1.0);
-    break;
-}
-
-ray.origin = hitBounce.xyz + ddaNormal(dda) * 0.01;
-
-
-
-}
-
-
-   
-return vec4(vec3(radiance),1.0);
-
-
-if(uv.x>1.0 || uv.x<0.0 || uv.y>1.0 || uv.y<0.0){
-
-  return vec4( te.xyz * lowest,1.0);
-}
-
-let view = ourStruct.lightView;
-
-        let pos = transpose(mat3x3<f32>(
-    view[0].xyz,
-    view[1].xyz,
-    view[2].xyz
-)) * -view[3].xyz;
-
-let lightPos = vec3f(pos);
-let currentDepth = projCoords.z;
-let N = normalize(in.normal);
-var L = normalize(lightPos - quantizedPos);
-L = normalize(vec3<f32>(ourStruct.lightView[3].xyz));
-var d = dot(N, -normalize(vec3(16,1,16) - vec3(20+16,20,16)));
-
-//d = clamp(d,0.75,1.0);
-//d = 1.0;
-
-let texSize = vec2f(textureDimensions(shadowTex, 0));
-let texelSize = 1.0 / texSize;
-
-var innerKernel = 0.0;
-
-let coord2 = floor(uv * texSize+0.5);
-let dis = textureLoad(shadowTex, vec2u(coord2), 0);
-
-  let forward = -normalize(vec3<f32>(
-    ourStruct.lightView[0][2],
-    ourStruct.lightView[1][2],
-    ourStruct.lightView[2][2]
-));
-
-let selfDis = projCoords.z;
-
-
-
-for(var x = -4; x<=4; x+=2){
-for(var y =-4; y<=4; y+=2){
-
-
-
-let coord = floor(uv * texSize+0.5) + vec2(f32(x),f32(y));
-
-let distance = textureLoad(shadowTex, vec2u(coord), 0);
-if(abs(selfDis) <0.001 + abs(distance)){
-
-innerKernel+=1.0/25.0;
-}
-
-
-
-
-  }
-
-}
-innerKernel = f32(innerKernel > 0.0);
-
-if (innerKernel==1.0){
-
-return vec4(te.xyz,1.0);
-
-}
-
-
-
-if(d<0.0){
-
-return vec4(te.xyz * mix(0.0,0.5,clamp((1.0-abs(d))*10.0,0.0,1.0)),1.0);
-
-}
-
-
-return vec4(te.xyz * mix(0.0,0.5,clamp(d,0.0,1.0)),1.0);
 
 
 
@@ -1461,7 +1319,7 @@ var dda = ddaInit(ray);
 
 for (var bounce = 0; bounce < 5; bounce++) {
     
-    var rayOriginal = Ray(ray.origin, normalize(vec3(16.0) - ray.origin));
+    var rayOriginal = Ray(ray.origin, normalize(vec3(1000.0) - ray.origin));
     var ddaOriginal = ddaInit(rayOriginal);
     let hitDirect = march(rayOriginal,&ddaOriginal,30);
 if(hitDirect.w==0.0){

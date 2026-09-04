@@ -53,7 +53,7 @@ async function main() {
   const webgpuInfo = await initWebgpu();
   //console.log(webgpuInfo.presentationFormat)
   
-  const mipCount = 11
+  const mipCount = 10
   const SIZE = 32
 
   const voxelInfo = generateVoxelData(webgpuInfo.device, SIZE)
@@ -128,9 +128,10 @@ async function main() {
     for(let i = 0; i < resources.lightingBuffer.storageValues.length; i++){
       resources.lightingBuffer.storageValues[i] = 0;
     }
+    shadowMapRender(webgpuInfo,pipelineFormat,resources,totalVoxels)
     //webgpuInfo.device.queue.writeBuffer(resources.lightingBuffer.storageBuffer, 0, resources.lightingBuffer.storageValues);
     lightMapRender(webgpuInfo,pipelineFormat,resources,totalVoxels)
-//shadowMapRender(webgpuInfo,pipelineFormat,resources,totalVoxels)
+
     
   })
 
@@ -149,7 +150,7 @@ let t1 = 0
     b = Math.sin(t1)*30 + 16
 
 
-    mat4.lookAt([20+16,20.0,0+16],[16,1,16],[0,1, 0],lightView)
+    mat4.lookAt([16,16,16],[0,0,0],[0,1, 0],lightView)
     //alert(lightView)
 
     const lightInfo = lightSourceCamera.update(0.03,lightView);
@@ -209,7 +210,6 @@ resources.uniformValues.set(lightInfo.view, 32 + 4 * 5 + 4 + 4 * 4)
     webgpuInfo,
     pipelineFormat,
     resources,
-    mipCount,
     voxelInfo.voxelCount,
     keyP)
 

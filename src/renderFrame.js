@@ -122,7 +122,6 @@ export function render(
     webgpuInfo,
     pipelineFormat,
     resources,
-    mipCount,
     it,
     keyP) {
 
@@ -220,7 +219,7 @@ console.error = function (...args) {
       firstLodPass.dispatchWorkgroups(Math.ceil(context.canvas.width / 8), Math.ceil(context.canvas.height / 8))
       firstLodPass.end()
 
-      for (let i = 1; i < mipCount; i++) {
+      for (let i = 1; i < resources.mipCount; i++) {
 
         const secondLodPass = encoder.beginComputePass()
         const generateNextMipBindgroup = device.createBindGroup({
@@ -274,7 +273,7 @@ console.error = function (...args) {
     pass.drawIndirect(resources.indirectBuffer.storageBuffer, 0);  // call our vertex shader 3 times
     pass.end();
 
-    if (false) {
+    if (!true) {
       const pass2 = encoder.beginRenderPass({
         colorAttachments: [
           {
