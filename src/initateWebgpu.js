@@ -1049,99 +1049,38 @@ fn fs(in: VSOut) -> @location(0) vec4f {
 
     shadowMapUV.y = 1.0- shadowMapUV.y;
     let sampledDepth3 = textureLoad(shadowTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(shadowTex, 0))),0);
-    //let colorSample = textureLoad(renderTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(renderTex, 0))),0);
 
         var illum = 0.0;
         let forward3 = -vec3<f32>(ourStruct.lightView[0].z, ourStruct.lightView[1].z, ourStruct.lightView[2].z);
 
 
     for(var ixs = 0i; ixs<3i; ixs++){
-    
-    for(var iys = 0i; iys<3i; iys++){
-        let offset = vec2f(f32(ixs-1),f32(iys-1));
-        //let sampledDepth2 = textureLoad(shadowTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(shadowTex, 0))+ offset),0);
-        let colorSample2 = textureLoad(renderTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(renderTex, 0)) + offset),0);
-
-        if(length(in.color - colorSample2.xyz)<0.9 && dot(in.normal,forward3)<0.0){
-
-        illum = 1.0;
-}
-
+        for(var iys = 0i; iys<3i; iys++){
+            let offset = vec2f(f32(ixs-1),f32(iys-1));
+            let colorSample2 = textureLoad(renderTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(renderTex, 0)) + offset),0);
+            if(length(in.color - colorSample2.xyz)<0.9 && dot(in.normal,forward3)<0.0){
+                illum = 1.0;
+            }
         }
     }
-
-
-
-     
-    //if(length(in.color - colorSample.xyz)<0.5 && dot(in.normal,forward3)<0.0){
-
-    //illum = 1.0;
-    
-    //}
-
-    //return vec4(0.0);
-
-    //return vec4(in.uv.x + t1.x * 0.0, in.uv.y+t2.x * 10.0,0.0,1.0);
-
-
-
-    let coord = (in.uv+1.0)*0.5 * vec2f(textureDimensions(lightingTex, 0).xy);
-    let c1 = vec2(floor(coord.x), floor(coord.y));
-    let c2 = vec2(floor(coord.x) + 1.0, floor(coord.y));
-    let c3 = vec2(floor(coord.x) + 1.0, floor(coord.y) + 1.0);
-    let c4 = vec2(floor(coord.x), floor(coord.y) + 1.0);
-
-    let rad1 = textureLoad(lightingTex,vec3<u32>(vec2<u32>(c1),u32(in.objectID)),0);
-    let rad2 = textureLoad(lightingTex,vec3<u32>(vec2<u32>(c2),u32(in.objectID)),0);
-    
-    var x1 = in.uv.x;
-    
-    let intX1 = mix(rad1,rad2,in.uv.x);
-
-    let rad3 = textureLoad(lightingTex,vec3<u32>(vec2<u32>(c4),u32(in.objectID)),0);
-    let rad4 = textureLoad(lightingTex,vec3<u32>(vec2<u32>(c3),u32(in.objectID)),0);
-    let intX2 = mix(rad3,rad4,in.uv.x);
-
-    let intXY = mix(intX1,intX2,in.uv.y);
-
-    //return vec4(te.xyz,1.0);
-    
-
-    //let b = coord[0];
-    //return vec4f(textureLoad(lightingTex,vec3<u32>(vec2<u32>(coord),u32(in.objectID)),0));
 
     var light = vec4(0.0);
     var i = 0.0;
     for(var x = 0u; x<8u; x++){
-      for(var y = 0u; y<8u; y++){
-
-
-      
-        let offset = vec2f(f32(x-2),f32(y-2));
-        let coord2 = vec2<u32>(vec2<u32>(x,y));
-        let texel = textureLoad(lightingTex,vec3<u32>(vec2<u32>(coord2),u32(in.objectID)),0);
-        if(coord2.x>=0 && coord2.y>=0 && coord2.x<8 && coord2.y<8){
-        i+=1.0;
-        light += texel;
-}
-      }
-}
-    light /=64;
-    
-    
-    //light = vec4(1.0);
-    
-
-    if(u32(in.objectID) > textureDimensions(lightingTex,0).z){
-    
-      //light = vec4(0.0);
+        for(var y = 0u; y<8u; y++){
+            let offset = vec2f(f32(x-2),f32(y-2));
+            let coord2 = vec2<u32>(vec2<u32>(x,y));
+            let texel = textureLoad(lightingTex,vec3<u32>(vec2<u32>(coord2),u32(in.objectID)),0);
+            if(coord2.x>=0 && coord2.y>=0 && coord2.x<8 && coord2.y<8){
+                i+=1.0;
+                light += texel;
+            }
+        }
     }
-    
+    light /=64;
     var te = textureLoad(voxelTextures, vec2<u32>((in.uv+1.0)*0.5 * vec2f(textureDimensions(voxelTextures, 0))), 0);
-    let idFromLocation = (in.color.x + in.color.y * 32.0 + in.color.z * 1024.0);
-    //return vec4(vec4f(unpack4xU8(lightingBufferRead[u32(idFromLocation) * 6 + u32(in.normalID)])).xyz/255.0,1.0);
 
-        const right = array(vec3f(0,1,0),vec3f(0,1,0),vec3f(1,0,0),vec3f(0,0,1),vec3f(1,0,0),vec3f(0,0,1));
+    const right = array(vec3f(0,1,0),vec3f(0,1,0),vec3f(1,0,0),vec3f(0,0,1),vec3f(1,0,0),vec3f(0,0,1));
     const up = array(vec3f(1,0,0), vec3f(0,0,1), vec3f(0,1,0), vec3f(0,1,0), vec3f(0,0,1), vec3f(1,0,0));
 
 
@@ -1151,19 +1090,12 @@ let roundedPos = round(in.worldPos);
 let fractPos = roundedPos - in.worldPos;
 let neighborDirections = sign(fractPos);
 
-
-
-//return vec4(neighborDirections,1.0);
-
-
 let A = in.color;
 let B = in.color + right[u32(in.normalID)] * neighborDirections;
 let C = in.color + right[u32(in.normalID)] * neighborDirections + up[u32(in.normalID)] * neighborDirections;
 let D = in.color + up[u32(in.normalID)] * neighborDirections;
 let u = 0.5 - dot(fractPos,right[u32(in.normalID)] * neighborDirections);
 let v = 0.5 - dot(fractPos,up[u32(in.normalID)] * neighborDirections);
-
-//return vec4(up[u32(in.normalID)],1.0);
 
 let Acolor = vec4f(unpack4xU8(lightingBufferRead[u32(A.x + A.y * 32.0 + A.z * 1024.0) * 6 + u32(in.normalID)]));
 let Bcolor = vec4f(unpack4xU8(lightingBufferRead[u32(B.x + B.y * 32.0 + B.z * 1024.0) * 6 + u32(in.normalID)]));
@@ -1175,38 +1107,17 @@ let wB = u * (1.0 - v);
 let wC = u * v;
 let wD = (1.0 - u) * v;
 
-
 var lightInt = Acolor * wA + Bcolor * wB + Ccolor * wC + Dcolor * wD;
 var totalWeight = wA * f32(Acolor.w > 0.0) + wB * f32(Bcolor.w > 0.0) + wC * f32(Ccolor.w > 0.0) + wD * f32(Dcolor.w > 0.0);
 
-
 let upperNeighborB = B + in.normal;
-let upperNeighborBExists = 
-f32(unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 1]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 2]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 3]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 4]).w +
-unpack4xU8(lightingBufferRead[u32(upperNeighborB.x + upperNeighborB.y * 32.0 + upperNeighborB.z * 1024.0) * 6 + 5]).w>0);
-
+let upperNeighborBExists = f32(textureLoad(cellTex, vec3<u32>(vec2<u32>(upperNeighborB.xy), u32(upperNeighborB.z)), 0).x>0);
 
 let upperNeighborC = C + in.normal;
-let upperNeighborCExists = 
-f32(unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 1]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 2]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 3]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 4]).w +
-unpack4xU8(lightingBufferRead[u32(upperNeighborC.x + upperNeighborC.y * 32.0 + upperNeighborC.z * 1024.0) * 6 + 5]).w>0);
+let upperNeighborCExists = f32(textureLoad(cellTex, vec3<u32>(vec2<u32>(upperNeighborC.xy), u32(upperNeighborC.z)), 0).x>0);
 
 let upperNeighborD = D + in.normal;
-let upperNeighborDExists = 
-f32(unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 1]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 2]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 3]).w + 
-unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 4]).w +
-unpack4xU8(lightingBufferRead[u32(upperNeighborD.x + upperNeighborD.y * 32.0 + upperNeighborD.z * 1024.0) * 6 + 5]).w > 0);
+let upperNeighborDExists = f32(textureLoad(cellTex, vec3<u32>(vec2<u32>(upperNeighborD.xy), u32(upperNeighborD.z)), 0).x>0);
 
 var ssoLight = 0.0;
 
@@ -1249,7 +1160,6 @@ if(upperNeighborBExists>=1.0 && upperNeighborDExists>=1.0 && upperNeighborCExist
 
 ssoLight = mix(1.0,0.5,sqrt(u*u + v*v));
 }
-
 
 lightInt /= max(totalWeight,0.0001);
 
