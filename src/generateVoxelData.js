@@ -263,7 +263,7 @@ export function generateVoxelData(device, SIZE) {
 
     function getVoxel(x, y, z) {
       //return true
-      //return y==0
+      return y==0
       //return y==0 && x+z<16
       //return (x+1)%3+y%3+z%3==0
       //return x%8==0 && z%8==0 && y==0

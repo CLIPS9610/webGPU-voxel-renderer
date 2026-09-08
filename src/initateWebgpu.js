@@ -40,7 +40,7 @@ export async function createPipeline(webgpuInfo,module) {
     fragment: {
       entryPoint: 'fs',
       module,
-      targets: [{ format: presentationFormat }],
+      targets: [{ format: "rgba32float" }],
     },
     depthStencil: {
       format: 'depth24plus', // Must match the texture format
@@ -68,7 +68,7 @@ export async function createPipeline(webgpuInfo,module) {
     colorAttachments: [
       {
         // view: <- to be filled out when we render
-        clearValue: [1.0, 160/255, 78/255, 1],
+        clearValue: [0.0, 0.0, 0.0, 6.0],
         loadOp: 'clear',
         storeOp: 'store',
       },
@@ -222,6 +222,7 @@ const UVS = array(
 @group(0) @binding(16) var <storage, read_write> lightingBufferStore: array<u32>;
 @group(0) @binding(17) var <storage, read> lightingBufferRead: array<u32>;
 @group(0) @binding(18) var <storage, read> totalVoxels: array<f32>;
+@group(0) @binding(19) var renderPassTextureView : texture_2d<f32>;
 
 // =================== Compute shader ===================
 
@@ -863,17 +864,145 @@ fn fs_main_fullscreen(@builtin(position) fragCoord : vec4<f32>)
 
     var depth = (textureLoad(shadowTex, coord, 0));
     var color = (textureLoad(renderTex, coord, 0));
+    var worldPos = textureLoad(renderPassTextureView, coord, 0);
+        let normal = normals[u32(worldPos.w)];
+
+    if(worldPos.w>=5.5){
+    
+        return vec4(0.5,0.5,0.5,1.0);
+    
+    }
+
+    var cellPos = floor(worldPos.xyz - normal*0.001);
      //depth = pow(depth,0.0);
 
-     return vec4(color.x/32.0,color.y/32.0,color.z/32.0,1.0);
-     return vec4(depth,depth,depth,1.0);
+     //return vec4(color.x/32.0,color.y/32.0,color.z/32.0,1.0);
+     //return vec4(depth,depth,depth,1.0);
 
     let ray = computeRay(fragCoord.xy/1024.0, ourStruct.view,ourStruct.projection);
     var dda = ddaInit(ray);
 
     const MAX_STEPS = 30;
 
-return vec4(1.0,0.0,0.0,1.0);
+
+var shadowMapUV = ourStruct.lightProjection * ourStruct.lightView * vec4(worldPos.xyz,1.0);
+    shadowMapUV = shadowMapUV*0.5+ vec4(0.5);
+
+    shadowMapUV.y = 1.0- shadowMapUV.y;
+    let sampledDepth3 = textureLoad(shadowTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(shadowTex, 0))),0);
+
+        var illum = 0.0;
+        let forward3 = -vec3<f32>(ourStruct.lightView[0].z, ourStruct.lightView[1].z, ourStruct.lightView[2].z);
+
+
+    for(var ixs = 0i; ixs<3i; ixs++){
+        for(var iys = 0i; iys<3i; iys++){
+            let offset = vec2f(f32(ixs-1),f32(iys-1));
+            let colorSample2 = textureLoad(renderTex,vec2<u32>(shadowMapUV.xy * vec2f(textureDimensions(renderTex, 0)) + offset),0);
+            if(length(cellPos.xyz - colorSample2.xyz)<0.9 && dot(normal,forward3)<0.0){
+                illum = 1.0;
+            }
+        }
+    }
+
+    
+    //var te = textureLoad(voxelTextures, vec2<u32>((in.uv+1.0)*0.5 * vec2f(textureDimensions(voxelTextures, 0))), 0);
+
+    const right = array(vec3f(0,1,0),vec3f(0,1,0),vec3f(1,0,0),vec3f(0,0,1),vec3f(1,0,0),vec3f(0,0,1));
+    const up = array(vec3f(1,0,0), vec3f(0,0,1), vec3f(0,1,0), vec3f(0,1,0), vec3f(0,0,1), vec3f(1,0,0));
+
+
+// get rounded pos
+let roundedPos = round(worldPos.xyz);
+
+let fractPos = roundedPos - worldPos.xyz;
+let neighborDirections = sign(fractPos);
+
+let A = cellPos.xyz;
+let B = cellPos.xyz + right[u32(worldPos.w)] * neighborDirections;
+let C = cellPos.xyz + right[u32(worldPos.w)] * neighborDirections + up[u32(worldPos.w)] * neighborDirections;
+let D = cellPos.xyz + up[u32(worldPos.w)] * neighborDirections;
+let u = 0.5 - dot(fractPos,right[u32(worldPos.w)] * neighborDirections);
+let v = 0.5 - dot(fractPos,up[u32(worldPos.w)] * neighborDirections);
+
+let Acolor = vec4f(unpack4xU8(lightingBufferRead[u32(A.x + A.y * 32.0 + A.z * 1024.0) * 6 + u32(worldPos.w)]));
+let Bcolor = vec4f(unpack4xU8(lightingBufferRead[u32(B.x + B.y * 32.0 + B.z * 1024.0) * 6 + u32(worldPos.w)]));
+let Ccolor = vec4f(unpack4xU8(lightingBufferRead[u32(C.x + C.y * 32.0 + C.z * 1024.0) * 6 + u32(worldPos.w)]));
+let Dcolor = vec4f(unpack4xU8(lightingBufferRead[u32(D.x + D.y * 32.0 + D.z * 1024.0) * 6 + u32(worldPos.w)]));
+
+let wA = (1.0 - u) * (1.0 - v);
+let wB = u * (1.0 - v);
+let wC = u * v;
+let wD = (1.0 - u) * v;
+
+var lightInt = Acolor * wA + Bcolor * wB + Ccolor * wC + Dcolor * wD;
+var totalWeight = wA * f32(Acolor.w > 0.0) + wB * f32(Bcolor.w > 0.0) + wC * f32(Ccolor.w > 0.0) + wD * f32(Dcolor.w > 0.0);
+
+let upperNeighborB = B + normal;
+let upperNeighborBExists = f32(textureLoad(cellTex, vec3<u32>(vec2<u32>(upperNeighborB.xy), u32(upperNeighborB.z)), 0).x>0);
+
+let upperNeighborC = C + normal;
+let upperNeighborCExists = f32(textureLoad(cellTex, vec3<u32>(vec2<u32>(upperNeighborC.xy), u32(upperNeighborC.z)), 0).x>0);
+
+let upperNeighborD = D + normal;
+let upperNeighborDExists = f32(textureLoad(cellTex, vec3<u32>(vec2<u32>(upperNeighborD.xy), u32(upperNeighborD.z)), 0).x>0);
+
+//return vec4(textureLoad(cellTex, vec3<u32>(vec2<u32>(cellPos.xy), u32(cellPos.z)), 0).x,0.0,0.0,1.0);
+//return vec4((upperNeighborBExists+ upperNeighborCExists +upperNeighborDExists)/3.0);
+
+var ssoLight = 0.0;
+
+if(upperNeighborBExists<1.0 && upperNeighborDExists<1.0 && upperNeighborCExists<1.0){
+
+ssoLight = 1.0;
+}
+
+if(upperNeighborBExists<1.0 && upperNeighborDExists>=1.0 && upperNeighborCExists<1.0){
+
+ssoLight = mix(1.0,0.5,v);
+}
+
+if(upperNeighborBExists>=1.0 && upperNeighborDExists<1.0 && upperNeighborCExists<1.0){
+
+ssoLight = mix(1.0,0.5,u);
+}
+
+if(upperNeighborBExists>=1.0 && upperNeighborDExists>=1.0 && upperNeighborCExists<1.0){
+
+ssoLight = mix(1.0,0.5,sqrt(u*u + v*v));
+}
+
+if(upperNeighborBExists<1.0 && upperNeighborDExists<1.0 && upperNeighborCExists>=1.0){
+
+ssoLight = mix(1.0,0.75,u*v*4.0);
+}
+
+if(upperNeighborBExists<1.0 && upperNeighborDExists>=1.0 && upperNeighborCExists>=1.0){
+
+ssoLight = mix(1.0,0.5,v);
+}
+
+if(upperNeighborBExists>=1.0 && upperNeighborDExists<1.0 && upperNeighborCExists>=1.0){
+
+ssoLight = mix(1.0,0.5,u);
+}
+
+if(upperNeighborBExists>=1.0 && upperNeighborDExists>=1.0 && upperNeighborCExists>=1.0){
+
+ssoLight = mix(1.0,0.5,sqrt(u*u + v*v));
+}
+
+lightInt /= max(totalWeight,0.0001);
+
+//return vec4(ssoLight);
+
+
+    return vec4((lightInt.xyz)/256.0 * 1.5* ssoLight *mix(0.5,1.0,illum),1.0);
+
+
+    
+
+//return vec4(cellPos.xyz,1.0);
 }
 
 
@@ -1053,6 +1182,7 @@ fn fs(in: VSOut) -> @location(0) vec4f {
         var illum = 0.0;
         let forward3 = -vec3<f32>(ourStruct.lightView[0].z, ourStruct.lightView[1].z, ourStruct.lightView[2].z);
 
+        return vec4(in.worldPos,in.normalID);
 
     for(var ixs = 0i; ixs<3i; ixs++){
         for(var iys = 0i; iys<3i; iys++){
@@ -1064,20 +1194,7 @@ fn fs(in: VSOut) -> @location(0) vec4f {
         }
     }
 
-    var light = vec4(0.0);
-    var i = 0.0;
-    for(var x = 0u; x<8u; x++){
-        for(var y = 0u; y<8u; y++){
-            let offset = vec2f(f32(x-2),f32(y-2));
-            let coord2 = vec2<u32>(vec2<u32>(x,y));
-            let texel = textureLoad(lightingTex,vec3<u32>(vec2<u32>(coord2),u32(in.objectID)),0);
-            if(coord2.x>=0 && coord2.y>=0 && coord2.x<8 && coord2.y<8){
-                i+=1.0;
-                light += texel;
-            }
-        }
-    }
-    light /=64;
+    
     var te = textureLoad(voxelTextures, vec2<u32>((in.uv+1.0)*0.5 * vec2f(textureDimensions(voxelTextures, 0))), 0);
 
     const right = array(vec3f(0,1,0),vec3f(0,1,0),vec3f(1,0,0),vec3f(0,0,1),vec3f(1,0,0),vec3f(0,0,1));
@@ -1307,7 +1424,7 @@ lightingBufferStore[(u32(instanceData.pos.x) + u32(instanceData.pos.y) * 32u + u
 
 }
 
-textureStore(lightingTexWrite,vec3<i32>(i32(uv.x),i32(uv.y),i32(i/64)),vec4(vec3(radiance),1.0));
+//textureStore(lightingTexWrite,vec3<i32>(i32(uv.x),i32(uv.y),i32(i/64)),vec4(vec3(radiance),1.0));
 
   
 

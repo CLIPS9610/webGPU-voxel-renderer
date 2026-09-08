@@ -180,7 +180,7 @@ console.error = function (...args) {
 
     //pipelineFormat.renderPassDescriptor.colorAttachments[0].view = pipelineFormat.msaaTexture.createView();
     //pipelineFormat.renderPassDescriptor.colorAttachments[0].resolveTarget = swapView;
-    pipelineFormat.renderPassDescriptor.colorAttachments[0].view = swapView;
+    pipelineFormat.renderPassDescriptor.colorAttachments[0].view = resources.renderPassTextureView ;
     //resources.lightSourceRenderPassDescriptor.colorAttachments[0].view = swapView;
     const encoder = device.createCommandEncoder({ label: 'our encoder' });
 
@@ -275,7 +275,7 @@ console.error = function (...args) {
     pass.drawIndirect(resources.indirectBuffer.storageBuffer, 0);  // call our vertex shader 3 times
     pass.end();
 
-    if (!true) {
+    if (true) {
       const pass2 = encoder.beginRenderPass({
         colorAttachments: [
           {

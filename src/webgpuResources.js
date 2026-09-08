@@ -356,28 +356,9 @@ const {device, presentationFormat, context} = webgpuInfo;
 
   
 
-  const textureSize = {
-  width: 8,
-  height: 8,
-  depthOrArrayLayers: 2048, // For a 3D texture, this is the Z-dimension
-};
 
-const volumeTexture = device.createTexture({
-  size: textureSize,
-  dimension: '3d', // Explicitly set to 3D
-  format: 'rgba8unorm',
-  usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-});
 
-device.queue.writeTexture(
-  { texture: volumeTexture },
-  dataBuffer, // Your typed array containing the 3D data
-  {
-    bytesPerRow: textureSize.width * 4,
-    rowsPerImage: textureSize.height,
-  },
-  textureSize
-);
+
 
 const cellTexture = device.createTexture({
   size: {width:32, height:32, depthOrArrayLayers: 32},
@@ -385,6 +366,14 @@ const cellTexture = device.createTexture({
   format: 'r8unorm',
   usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 });
+
+const renderPassTexture = device.createTexture({
+  size: {width: context.canvas.width, height: context.canvas.height, depthOrArrayLayers: 1},
+  format: 'rgba32float',
+  usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+
+const renderPassTextureView = renderPassTexture.createView();
 
 device.queue.writeTexture(
   { texture: cellTexture },
@@ -403,7 +392,6 @@ device.queue.writeTexture(
 
 
     let mipCount = Math.min(11, Math.floor(Math.log2(Math.max(context.canvas.width, context.canvas.height))))
-    //alert(mipCount)
 
     const hizTexture = device.createTexture({
     size: [context.canvas.width, context.canvas.height],
@@ -415,6 +403,7 @@ device.queue.writeTexture(
       GPUTextureUsage.RENDER_ATTACHMENT
   });
 
+      const lightingBuffer = createStorageBuffer(device, 32 * 32 * 32 *  6 * 4)
 
        const debugQuadBindGroup = device.createBindGroup({
     layout: debugQuadPipeline.getBindGroupLayout(0),
@@ -431,7 +420,10 @@ device.queue.writeTexture(
       {
         binding: 11, resource: lightSourceRenderTexture.createView()
 
-      }
+      },{binding:19, resource: renderPassTextureView},
+      { binding: 17, resource: lightingBuffer.storageBuffer },
+      { binding: 13, resource: cellTexture.createView() }
+
 
 
        
@@ -490,7 +482,7 @@ device.queue.writeTexture(
     const storageData = createStorageBuffer(device, Math.floor(it * 1.5) * 8 * 4)
     const atomicStorageData = createStorageBuffer(device, 4)
     const indirectBuffer = createIndirectBuffer(device, 4 * 4)
-    const lightingBuffer = createStorageBuffer(device, 32 * 32 * 32 *  6 * 4)
+
     const testBuffer = createStorageBuffer(device, 4 * 4);
 
     for(let x = 0; x<32; x++){
@@ -522,7 +514,6 @@ device.queue.writeTexture(
       { binding: 8, resource: voxelTexture.createView() },
       { binding: 10, resource: lightSourceDepthTextureView },
       { binding: 11, resource: lightSourceRenderTextureView },
-      { binding: 12, resource: volumeTexture.createView() },
       { binding: 17, resource: lightingBuffer.storageBuffer },
       { binding: 13, resource: cellTexture.createView() }
       
@@ -542,7 +533,6 @@ device.queue.writeTexture(
       layout: lightMapPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 1, resource: storageData.storageBuffer },
-        { binding: 14, resource: volumeTexture.createView() },
       { binding: 13, resource: cellTexture.createView() },
       { binding: 16, resource: lightingBuffer.storageBuffer }
         
@@ -574,7 +564,6 @@ const cullingBindGroup = device.createBindGroup({
 
         binding:18, resource: testBuffer.storageBuffer
       }
-
 
     ],
   });
@@ -644,7 +633,9 @@ const cullingBindGroup = device.createBindGroup({
     lightSourceRenderTexture,
     lightSourceRenderTextureView,
     lightSourceDepthTextureView,
-    testBuffer
+    testBuffer,
+    renderPassTexture,
+    renderPassTextureView
 
   }
 
