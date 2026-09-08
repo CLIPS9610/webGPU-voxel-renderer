@@ -221,6 +221,7 @@ const UVS = array(
 @group(0) @binding(15) var blueNoiseTexture : texture_2d<f32>;
 @group(0) @binding(16) var <storage, read_write> lightingBufferStore: array<u32>;
 @group(0) @binding(17) var <storage, read> lightingBufferRead: array<u32>;
+@group(0) @binding(18) var <storage, read> totalVoxels: array<f32>;
 
 // =================== Compute shader ===================
 
@@ -232,6 +233,10 @@ fn computeMain(@builtin(global_invocation_id) id: vec3<u32>) {
     if (i >= arrayLength(&otherStructsCompute)) {
   return;
 }
+    if(i>=u32(totalVoxels[3])){
+  
+    return;
+  }
 
 
 var seen = false;

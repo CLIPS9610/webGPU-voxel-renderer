@@ -267,13 +267,13 @@ const {device, presentationFormat, context} = webgpuInfo;
     })
 
     const lightSourceDepthTexture = device.createTexture({
-      size: [1024,1024],
+      size: [1024 * 4,1024 * 4],
       format: 'depth32float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
     });
 
     const lightSourceRenderTexture = device.createTexture({
-      size: [1024,1024],
+      size: [1024 * 4,1024 * 4],
       format: 'rgba32float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
     });
@@ -491,6 +491,7 @@ device.queue.writeTexture(
     const atomicStorageData = createStorageBuffer(device, 4)
     const indirectBuffer = createIndirectBuffer(device, 4 * 4)
     const lightingBuffer = createStorageBuffer(device, 32 * 32 * 32 *  6 * 4)
+    const testBuffer = createStorageBuffer(device, 4 * 4);
 
     for(let x = 0; x<32; x++){
       for(let y = 0; y<32; y++){
@@ -567,7 +568,12 @@ const cullingBindGroup = device.createBindGroup({
           baseMipLevel: 0,
           mipLevelCount: mipCount
         }),
+      },{
+
+
+        binding:18, resource: testBuffer.storageBuffer
       }
+
 
     ],
   });
@@ -632,7 +638,12 @@ const cullingBindGroup = device.createBindGroup({
     lightingBuffer,
     clearLightMapPipeline,
     clearLightMapBindgroup,
-    mipCount
+    mipCount,
+    lightSourceDepthTexture,
+    lightSourceRenderTexture,
+    lightSourceRenderTextureView,
+    lightSourceDepthTextureView,
+    testBuffer
 
   }
 

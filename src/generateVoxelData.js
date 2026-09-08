@@ -159,6 +159,102 @@ if (true) {
 
   }
 
+  export function removeVoxel(webgpuInfo,voxelInfo,camera,resources,SIZE){
+
+  //return
+const normals = [
+    [0, 0, 1],
+    [-1, 0, 0],
+    [0, 0, -1],
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, -1, 0]]
+
+    
+    try{
+
+      const voxels = voxelInfo.voxels;
+
+      const vox = getVoxel(voxels, SIZE,Math.floor(camera.position[0]),Math.floor(camera.position[1]),Math.floor(camera.position[2]))
+
+    if(vox >0) {
+      //alert("filled and removing")
+      //return;
+    voxels[Math.floor(camera.position[0])][Math.floor(camera.position[1])][Math.floor(camera.position[2])] = 0
+    for (let p = 0; p < 6; p++) {
+
+
+      let normal = normals[p]
+      let neighbor = [Math.floor(camera.position[0]) - normal[0], Math.floor(camera.position[1]) - normal[1], Math.floor(camera.position[2]) - normal[2]]
+      if (true) {
+
+        //let o = getQuadData(voxelInfo.storageValues, neighbor[0], neighbor[1], neighbor[2], p * 6,voxelInfo.voxelCount * 8)
+          let o = getQuadData(voxelInfo.storageValues, Math.floor(camera.position[0]), Math.floor(camera.position[1]), Math.floor(camera.position[2]), p* 6, voxelInfo.voxelCount)
+
+        if (o>=0){
+  
+  try{
+    //alert("swapREmoving")
+  swapRemoveAndAddStaticArray(voxelInfo.storageValues, [o, o + 1, o + 2, o + 3, o + 4, o + 5, o + 6, o+7], [], voxelInfo.voxelCount * 8)
+    voxelInfo.voxelCount--
+    
+    //return totalVoxels--
+}
+  catch(e) {
+    alert(e)
+  }
+
+  
+
+}
+
+let otherNeighbor = [Math.floor(camera.position[0]) - normal[0], Math.floor(camera.position[1]) - normal[1], Math.floor(camera.position[2]) - normal[2]]
+const vox2 = getVoxel(voxels, SIZE,otherNeighbor[0],otherNeighbor[1],otherNeighbor[2])
+
+if (true) {
+
+  //ael(voxels[otherNeighbor[0]][otherNeighbor[1]][otherNeighbor[2]])
+
+  if (vox2 >0) {
+
+    
+  
+  setInstance(voxelInfo.storageValues, voxelInfo.voxelCount, otherNeighbor[0], otherNeighbor[1], otherNeighbor[2], p, 1, 1, 1)
+  voxelInfo.voxelCount++  
+
+  //return totalVoxels++
+
+  }
+
+
+}
+
+
+
+      }
+
+      webgpuInfo.device.queue.writeBuffer(voxelInfo.storageBuffer, 0, voxelInfo.storageValues);
+      webgpuInfo.device.queue.writeBuffer(resources.storageData.storageBuffer, 0, voxelInfo.storageValues);
+
+
+    }
+
+    //voxelInfo.voxelCount--
+
+  }
+
+
+}catch(e){
+
+
+
+}
+
+//alert("click")
+//alert(voxelInfo.voxelCount)
+
+}
+
 export function generateVoxelData(device, SIZE) {
 
     const instanceCount = SIZE ** 3 * 6;
@@ -167,7 +263,7 @@ export function generateVoxelData(device, SIZE) {
 
     function getVoxel(x, y, z) {
       //return true
-      //return y==0
+      return y==0
       //return y==0 && x+z<16
       //return (x+1)%3+y%3+z%3==0
       //return x%8==0 && z%8==0 && y==0

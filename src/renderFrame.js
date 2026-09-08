@@ -172,6 +172,8 @@ console.error = function (...args) {
     const swapTexture = context.getCurrentTexture();
     const swapView = swapTexture.createView();
 
+    device.queue.writeBuffer(resources.testBuffer.storageBuffer,0,new Float32Array([0,0,0,it]))
+
     //console.log(uniformValues)
     device.queue.writeBuffer(resources.uniformBuffer, 0, resources.uniformValues);
     device.queue.writeBuffer(resources.atomicStorageData.storageBuffer, 0, new Uint32Array([0]));

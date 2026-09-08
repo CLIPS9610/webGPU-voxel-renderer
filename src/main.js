@@ -6,7 +6,7 @@ import {createWebgpuResources } from './webgpuResources.js';
 
 import { createPipeline, initWebgpu, createModule } from './initateWebgpu.js';
 
-import { setInstance, generateVoxelData, addVoxel } from './generateVoxelData.js';
+import { setInstance, generateVoxelData, addVoxel, removeVoxel } from './generateVoxelData.js';
 
 import { render,shadowMapRender,lightMapRender } from './renderFrame.js';
 
@@ -103,9 +103,22 @@ async function main() {
     
   })
 
-  document.addEventListener("click", e => {
+document.addEventListener('contextmenu', (event) => {
+    // 1. Prevent the default browser context menu from appearing
+    event.preventDefault(); 
+    
+    // 2. Run your custom right-click logic
+    //alert("Right click detected!");
+});
 
-    addVoxel(webgpuInfo, voxelInfo, camera, resources, SIZE,totalVoxels)
+document.addEventListener('mousedown', (event) => {
+    // Check if the pointer lock is currently active on any element
+    if (document.pointerLockElement) {
+
+      if (event.button === 0){
+
+
+        addVoxel(webgpuInfo, voxelInfo, camera, resources, SIZE,totalVoxels)
     let cell = [Math.floor(camera.position[0]),Math.floor(camera.position[1]),Math.floor(camera.position[2])]
     //alert(cell)
     
@@ -132,8 +145,42 @@ async function main() {
     //webgpuInfo.device.queue.writeBuffer(resources.lightingBuffer.storageBuffer, 0, resources.lightingBuffer.storageValues);
     lightMapRender(webgpuInfo,pipelineFormat,resources,totalVoxels)
 
+      }
+        
+        // event.button returns 2 for the secondary/right mouse button
+        if (event.button === 2) {
+
+          removeVoxel(webgpuInfo, voxelInfo, camera, resources, SIZE,totalVoxels)
+    let cell = [Math.floor(camera.position[0]),Math.floor(camera.position[1]),Math.floor(camera.position[2])]
+    //alert(cell)
     
-  })
+    if(cell[0]>=0 && cell[0] < 32 && cell[1]>=0 && cell[1] < 32 && cell[2]>=0 && cell[2] < 32){
+      //alert("filled")
+    resources.cellBuffer[cell[0] + cell[1] * 32 + cell[2] * 32 * 32] = 0
+    webgpuInfo.device.queue.writeTexture(
+  { texture: resources.cellTexture },
+  resources.cellBuffer, // Your typed array containing the 3D data
+  {
+    bytesPerRow: 32,
+    rowsPerImage: 32,
+  },
+  {width:32, height:32, depthOrArrayLayers: 32}
+);
+    }
+    //alert(resources.lightingBuffer.storageValues)
+    
+    totalVoxels = voxelInfo.voxelCount
+    for(let i = 0; i < resources.lightingBuffer.storageValues.length; i++){
+      resources.lightingBuffer.storageValues[i] = 0;
+    }
+    shadowMapRender(webgpuInfo,pipelineFormat,resources,totalVoxels)
+    //webgpuInfo.device.queue.writeBuffer(resources.lightingBuffer.storageBuffer, 0, resources.lightingBuffer.storageValues);
+    lightMapRender(webgpuInfo,pipelineFormat,resources,totalVoxels)
+            
+            // Insert your custom game/application action here
+        }
+    }
+});
 
 
 //lightSourceCamera.position = [0, 200, 0]
@@ -150,7 +197,7 @@ let t1 = 0
     b = Math.sin(t1)*30 + 16
 
 
-    mat4.lookAt([16,16,16],[0,0,0],[0,1, 0],lightView)
+    mat4.lookAt([64,64,64],[0,0,0],[0,1, 0],lightView)
     //alert(lightView)
 
     const lightInfo = lightSourceCamera.update(0.03,lightView);
@@ -163,12 +210,12 @@ let t1 = 0
 
 const { view, projection, viewPrev } = camera.update(0.03);
 
-const left = -10;
-const right = 10;
-const bottom = -10;
-const top = 10;
+const left = -64;
+const right = 64;
+const bottom = -64;
+const top = 64;
 const near = 1.0;
-const far = 60;
+const far = 1000;
 
 // Create the orthographic matrix
 const orthographicMatrix = mat4.ortho(left, right, bottom, top, near, far);

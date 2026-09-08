@@ -85,6 +85,9 @@ pipelineFormat.renderPassDescriptor = renderPassDescriptor
           baseMipLevel: 0,
           mipLevelCount: resources.mipCount
         }),
+      },
+      {
+        binding: 18, resource: resources.testBuffer.storageBuffer
       }
 
     ],
@@ -105,7 +108,7 @@ pipelineFormat.renderPassDescriptor = renderPassDescriptor
 
       {
         binding: 5, resource: pipelineFormat.depthTextureView
-      }
+      },
 
 
     ],
@@ -122,7 +125,13 @@ pipelineFormat.renderPassDescriptor = renderPassDescriptor
       {
         binding: 0, resource: resources.uniformBuffer
 
-      }]
+      },
+       {
+        binding: 11, resource: resources.lightSourceRenderTextureView
+
+      }
+    
+    ]
     
     })
 
