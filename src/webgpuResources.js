@@ -523,7 +523,8 @@ device.queue.writeTexture(
       { binding: 10, resource: lightSourceDepthTextureView },
       { binding: 11, resource: lightSourceRenderTextureView },
       { binding: 12, resource: volumeTexture.createView() },
-      { binding: 17, resource: lightingBuffer.storageBuffer }
+      { binding: 17, resource: lightingBuffer.storageBuffer },
+      { binding: 13, resource: cellTexture.createView() }
       
     ]
   });
